@@ -1,34 +1,112 @@
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
+import type { Tag } from "@shared/schema";
 
 export function ResearcherUpload() {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [researchText, setResearchText] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [step, setStep] = useState<"upload" | "questionnaire">("upload");
+  const [formData, setFormData] = useState({
+    targetAudience: "",
+    applicationAreas: "",
+    practicalConstraints: "",
+    additionalInsights: "",
+  });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: tags = [] } = useQuery<Tag[]>({
+    queryKey: ["/api/tags"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("/api/infographics", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success!",
+        description: "Your research has been submitted for review.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/researcher/infographics"] });
+      
+      // Reset form
+      setResearchText("");
+      setSelectedTags([]);
+      setFormData({
+        targetAudience: "",
+        applicationAreas: "",
+        practicalConstraints: "",
+        additionalInsights: "",
+      });
+      setStep("upload");
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload research. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleContinue = () => {
+    if (!researchText.trim()) {
+      toast({
+        title: "Missing text",
+        description: "Please paste your research text to continue.",
+        variant: "destructive",
+      });
+      return;
     }
+    setStep("questionnaire");
   };
 
-  const handleUpload = async () => {
-    setUploading(true);
-    // Simulate upload
-    setTimeout(() => {
-      setUploading(false);
-      setStep("questionnaire");
-      console.log("File uploaded, moving to questionnaire");
-    }, 1500);
+  const handleSubmit = () => {
+    const researcherNotes = `
+Target Audience: ${formData.targetAudience}
+Application Areas: ${formData.applicationAreas}
+Practical Constraints: ${formData.practicalConstraints}
+Additional Insights: ${formData.additionalInsights}
+    `.trim();
+
+    uploadMutation.mutate({
+      researchText,
+      researcherNotes: researcherNotes || undefined,
+      tagIds: selectedTags,
+    });
   };
 
-  const handleSubmitQuestionnaire = () => {
-    console.log("Questionnaire submitted, generating infographics...");
+  const toggleTag = (tagId: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
+    );
   };
 
   if (step === "questionnaire") {
@@ -46,6 +124,8 @@ export function ResearcherUpload() {
             <Input
               id="target-audience"
               placeholder="e.g., Office workers, Students, Athletes"
+              value={formData.targetAudience}
+              onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
               data-testid="input-target-audience"
             />
           </div>
@@ -55,6 +135,8 @@ export function ResearcherUpload() {
             <Textarea
               id="application-areas"
               placeholder="Where can people apply this research in their daily lives?"
+              value={formData.applicationAreas}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicationAreas: e.target.value }))}
               data-testid="textarea-application-areas"
             />
           </div>
@@ -64,6 +146,8 @@ export function ResearcherUpload() {
             <Textarea
               id="practical-constraints"
               placeholder="Any limitations or considerations people should know?"
+              value={formData.practicalConstraints}
+              onChange={(e) => setFormData(prev => ({ ...prev, practicalConstraints: e.target.value }))}
               data-testid="textarea-constraints"
             />
           </div>
@@ -73,16 +157,53 @@ export function ResearcherUpload() {
             <Textarea
               id="additional-insights"
               placeholder="Any other context that would help generate better solutions?"
+              value={formData.additionalInsights}
+              onChange={(e) => setFormData(prev => ({ ...prev, additionalInsights: e.target.value }))}
               data-testid="textarea-insights"
             />
           </div>
 
+          <div className="space-y-2">
+            <Label>Select Tags (Optional)</Label>
+            <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                <Badge
+                  key={tag.id}
+                  variant={selectedTags.includes(tag.id) ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => toggleTag(tag.id)}
+                  data-testid={`tag-${tag.id}`}
+                >
+                  {selectedTags.includes(tag.id) && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                  {tag.name}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2 pt-4">
-            <Button onClick={() => setStep("upload")} variant="outline" data-testid="button-back">
+            <Button 
+              onClick={() => setStep("upload")} 
+              variant="outline" 
+              disabled={uploadMutation.isPending}
+              data-testid="button-back"
+            >
               Back
             </Button>
-            <Button onClick={handleSubmitQuestionnaire} className="flex-1" data-testid="button-generate">
-              Generate Infographics
+            <Button 
+              onClick={handleSubmit} 
+              className="flex-1" 
+              disabled={uploadMutation.isPending}
+              data-testid="button-generate"
+            >
+              {uploadMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Generate Infographics"
+              )}
             </Button>
           </div>
         </CardContent>
@@ -95,60 +216,33 @@ export function ResearcherUpload() {
       <CardHeader>
         <CardTitle>Upload Research</CardTitle>
         <CardDescription>
-          Upload your research paper as text or PDF to generate infographics
+          Paste your research paper text to generate infographics
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="border-2 border-dashed border-border rounded-md p-8 text-center hover-elevate cursor-pointer">
-          <input
-            type="file"
-            accept=".pdf,.txt,.doc,.docx"
-            onChange={handleFileChange}
-            className="hidden"
-            id="file-upload"
-            data-testid="input-file"
+        <div className="space-y-2">
+          <Label htmlFor="research-text">Research Paper Text</Label>
+          <Textarea
+            id="research-text"
+            placeholder="Paste the full text of your research paper here..."
+            value={researchText}
+            onChange={(e) => setResearchText(e.target.value)}
+            rows={12}
+            className="font-mono text-sm"
+            data-testid="textarea-research"
           />
-          <label htmlFor="file-upload" className="cursor-pointer">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Upload className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  PDF, TXT, DOC up to 10MB
-                </p>
-              </div>
-            </div>
-          </label>
+          <p className="text-xs text-muted-foreground">
+            Paste the complete research paper including abstract, methodology, results, and conclusions
+          </p>
         </div>
 
-        {file && (
-          <div className="flex items-center gap-3 p-3 rounded-md bg-muted">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">{file.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {(file.size / 1024).toFixed(2)} KB
-              </p>
-            </div>
-          </div>
-        )}
-
         <Button
-          onClick={handleUpload}
-          disabled={!file || uploading}
+          onClick={handleContinue}
+          disabled={!researchText.trim()}
           className="w-full"
-          data-testid="button-upload"
+          data-testid="button-continue"
         >
-          {uploading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            "Continue"
-          )}
+          Continue to Questionnaire
         </Button>
       </CardContent>
     </Card>
