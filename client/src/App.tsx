@@ -10,10 +10,11 @@ import Feed from "@/pages/Feed";
 import Profile from "@/pages/Profile";
 import Admin from "@/pages/Admin";
 import Researcher from "@/pages/Researcher";
+import About from "@/pages/About";
 import NotFound from "@/pages/not-found";
 import avatar from "@assets/stock_images/professional_researc_f4eae1c5.jpg";
 import { Button } from "@/components/ui/button";
-import { Home as HomeIcon, LayoutGrid, User, Settings, Upload } from "lucide-react";
+import { Home as HomeIcon, LayoutGrid, User, Settings, Upload, Info } from "lucide-react";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/admin" component={Admin} />
       <Route path="/researcher" component={Researcher} />
+      <Route path="/about" component={About} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -70,6 +72,13 @@ function App() {
                     <Settings className="h-5 w-5" />
                   </Button>
                 </Link>
+                <div className="mt-auto">
+                  <Link href="/about">
+                    <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-about-sidebar">
+                      <Info className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                </div>
               </aside>
               
               <main className="flex-1">

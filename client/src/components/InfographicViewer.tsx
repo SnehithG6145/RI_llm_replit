@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VisuallyHidden } from "@/components/ui/visually-hidden";
 
 interface InfographicSection {
   id: string;
@@ -35,6 +36,9 @@ export function InfographicViewer({ open, onClose, sections }: InfographicViewer
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[90vh] p-0 gap-0 bg-black/90">
+        <VisuallyHidden>
+          <DialogTitle>Infographic Viewer</DialogTitle>
+        </VisuallyHidden>
         <div className="relative w-full h-full flex items-center justify-center">
           <Button
             variant="ghost"

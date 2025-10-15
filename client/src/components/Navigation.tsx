@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "./ThemeToggle";
+import { Link } from "wouter";
 
 interface NavigationProps {
   userRole: "researcher" | "customer" | "admin";
@@ -27,6 +28,13 @@ export function Navigation({ userRole, userName, userAvatar, onSearch }: Navigat
             <h1 className="text-2xl font-serif font-bold" data-testid="text-logo">
               ResearchBite
             </h1>
+            <nav className="hidden lg:flex items-center gap-6">
+              <Link href="/about">
+                <Button variant="ghost" size="sm" data-testid="nav-about">
+                  About
+                </Button>
+              </Link>
+            </nav>
             <div className="hidden md:flex relative w-80">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
