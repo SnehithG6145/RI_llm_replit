@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Navigation } from "@/components/Navigation";
+import { useAuth } from "@/hooks/useAuth";
+import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Feed from "@/pages/Feed";
 import Profile from "@/pages/Profile";
@@ -12,11 +14,33 @@ import Admin from "@/pages/Admin";
 import Researcher from "@/pages/Researcher";
 import About from "@/pages/About";
 import NotFound from "@/pages/not-found";
-import avatar from "@assets/stock_images/professional_researc_f4eae1c5.jpg";
 import { Button } from "@/components/ui/button";
 import { Home as HomeIcon, LayoutGrid, User, Settings, Upload, Info } from "lucide-react";
 
 function Router() {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/about" component={About} />
+        <Route path="/" component={Landing} />
+        <Route component={Landing} />
+      </Switch>
+    );
+  }
+
   return (
     <Switch>
       <Route path="/" component={Home} />
@@ -30,67 +54,88 @@ function Router() {
   );
 }
 
-function App() {
-  const userRole = "customer";
+function AuthenticatedApp() {
+  const { user } = useAuth();
+  
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navigation
+        userRole={(user?.role || 'customer') as 'customer' | 'researcher' | 'admin'}
+        userName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User'}
+        userAvatar={user?.profileImageUrl || undefined}
+        onSearch={(q) => console.log("Search:", q)}
+      />
+      
+      <div className="flex-1 flex">
+        <aside className="hidden md:flex w-20 border-r flex-col items-center py-6 gap-4 sticky top-16 h-[calc(100vh-4rem)]">
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-home">
+              <HomeIcon className="h-5 w-5" />
+            </Button>
+          </Link>
+          <Link href="/feed">
+            <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-feed">
+              <LayoutGrid className="h-5 w-5" />
+            </Button>
+          </Link>
+          {(user?.role === 'researcher' || user?.role === 'admin') && (
+            <Link href="/researcher">
+              <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-researcher">
+                <Upload className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
+          <Link href="/profile">
+            <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-profile">
+              <User className="h-5 w-5" />
+            </Button>
+          </Link>
+          {user?.role === 'admin' && (
+            <Link href="/admin">
+              <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-admin">
+                <Settings className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
+          <div className="mt-auto">
+            <Link href="/about">
+              <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-about-sidebar">
+                <Info className="h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </aside>
+        
+        <main className="flex-1">
+          <Router />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const { isAuthenticated, isLoading } = useAuth();
 
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
-          <div className="min-h-screen flex flex-col">
-            <Navigation
-              userRole={userRole}
-              userName="Sarah Chen"
-              userAvatar={avatar}
-              onSearch={(q) => console.log("Search:", q)}
-            />
-            
-            <div className="flex-1 flex">
-              <aside className="hidden md:flex w-20 border-r flex-col items-center py-6 gap-4 sticky top-16 h-[calc(100vh-4rem)]">
-                <Link href="/">
-                  <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-home">
-                    <HomeIcon className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/feed">
-                  <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-feed">
-                    <LayoutGrid className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/researcher">
-                  <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-researcher">
-                    <Upload className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/profile">
-                  <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-profile">
-                    <User className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/admin">
-                  <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-admin">
-                    <Settings className="h-5 w-5" />
-                  </Button>
-                </Link>
-                <div className="mt-auto">
-                  <Link href="/about">
-                    <Button variant="ghost" size="icon" className="h-12 w-12" data-testid="nav-about-sidebar">
-                      <Info className="h-5 w-5" />
-                    </Button>
-                  </Link>
-                </div>
-              </aside>
-              
-              <main className="flex-1">
-                <Router />
-              </main>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-screen">
+              <div className="text-center">
+                <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading...</p>
+              </div>
             </div>
-          </div>
+          ) : isAuthenticated ? (
+            <AuthenticatedApp />
+          ) : (
+            <Router />
+          )}
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;
