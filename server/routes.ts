@@ -1,9 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, requireRole } from "./replitAuth";
+import { setupAuth, isAuthenticated, requireRole } from "./simpleAuth";
 import { generateInfographicFromText } from "./openai";
-import { insertTagSchema, insertInfographicSchema } from "@shared/schema";
+import { insertTagSchema, insertInfographicSchema, loginSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -11,11 +11,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // ============= AUTH ROUTES =============
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.password !== password) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      (req.session as any).userId = user.id;
+      
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error logging in:", error);
+      res.status(500).json({ message: "Failed to login" });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Failed to logout" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      res.json(req.user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -57,7 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const tagData = insertTagSchema.parse({
         ...req.body,
-        createdBy: req.dbUser.id,
+        createdBy: req.user.id,
       });
       
       const tag = await storage.createTag(tagData);
@@ -151,7 +177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sections = await generateInfographicFromText(researchText, researcherNotes);
       
       const infographicData = {
-        researcherId: req.dbUser.id,
+        researcherId: req.user.id,
         status: 'pending',
         sectionA: sections.sectionA,
         sectionB: sections.sectionB,
@@ -179,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get researcher's infographics
   app.get('/api/researcher/infographics', isAuthenticated, requireRole('researcher', 'admin'), async (req: any, res) => {
     try {
-      const infographics = await storage.getInfographicsByResearcher(req.dbUser.id);
+      const infographics = await storage.getInfographicsByResearcher(req.user.id);
       res.json(infographics);
     } catch (error) {
       console.error("Error fetching researcher infographics:", error);
@@ -216,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const infographic = await storage.updateInfographicStatus(
         id,
         status,
-        req.dbUser.id,
+        req.user.id,
         rejectionReason
       );
       

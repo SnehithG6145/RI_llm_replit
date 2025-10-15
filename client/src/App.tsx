@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Navigation } from "@/components/Navigation";
 import { useAuth } from "@/hooks/useAuth";
-import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import Feed from "@/pages/Feed";
 import Profile from "@/pages/Profile";
@@ -38,8 +38,8 @@ function Router({ isAuthenticated, isLoading }: RouterProps) {
     return (
       <Switch>
         <Route path="/about" component={About} />
-        <Route path="/" component={Landing} />
-        <Route component={Landing} />
+        <Route path="/" component={Login} />
+        <Route component={Login} />
       </Switch>
     );
   }

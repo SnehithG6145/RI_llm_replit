@@ -5,7 +5,7 @@ import {
   infographicTags,
   userTagPreferences,
   type User,
-  type UpsertUser,
+  type InsertUser,
   type Tag,
   type InsertTag,
   type Infographic,
@@ -18,9 +18,10 @@ import { eq, and, inArray, desc, sql } from "drizzle-orm";
 
 // Interface for all storage operations
 export interface IStorage {
-  // User operations (required for Replit Auth)
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  // User operations
+  getUserById(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<(User & { password: string }) | undefined>;
+  createUser(user: InsertUser): Promise<User>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
   
   // Tag operations
@@ -51,24 +52,33 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // User operations
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+  async getUserById(id: string): Promise<User | undefined> {
+    const [user] = await db.select({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      profileImageUrl: users.profileImageUrl,
+      role: users.role,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    }).from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async getUserByEmail(email: string): Promise<(User & { password: string }) | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user as any;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
       .returning();
-    return user;
+    
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword as User;
   }
 
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {
