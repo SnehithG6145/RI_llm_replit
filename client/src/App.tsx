@@ -17,9 +17,12 @@ import NotFound from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { Home as HomeIcon, LayoutGrid, User, Settings, Upload, Info } from "lucide-react";
 
-function Router() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+interface RouterProps {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
 
+function Router({ isAuthenticated, isLoading }: RouterProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -54,9 +57,12 @@ function Router() {
   );
 }
 
-function AuthenticatedApp() {
-  const { user } = useAuth();
-  
+interface AuthenticatedAppProps {
+  user: any;
+  isLoading: boolean;
+}
+
+function AuthenticatedApp({ user, isLoading }: AuthenticatedAppProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <Navigation
@@ -107,7 +113,7 @@ function AuthenticatedApp() {
         </aside>
         
         <main className="flex-1">
-          <Router />
+          <Router isAuthenticated={true} isLoading={isLoading} />
         </main>
       </div>
     </div>
@@ -115,7 +121,7 @@ function AuthenticatedApp() {
 }
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -129,10 +135,10 @@ function AppContent() {
   }
 
   if (isAuthenticated) {
-    return <AuthenticatedApp />;
+    return <AuthenticatedApp user={user} isLoading={isLoading} />;
   }
 
-  return <Router />;
+  return <Router isAuthenticated={false} isLoading={isLoading} />;
 }
 
 export default function App() {
