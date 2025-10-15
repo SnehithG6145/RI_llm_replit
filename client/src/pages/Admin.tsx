@@ -1,97 +1,121 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
+import { apiRequest } from "@/lib/queryClient";
 import { AdminTagManager } from "@/components/AdminTagManager";
 import { VerificationQueue } from "@/components/VerificationQueue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import infographic1 from "@assets/stock_images/infographic_design_w_7b77ce39.jpg";
-import infographic2 from "@assets/stock_images/infographic_design_w_81ae4f32.jpg";
-import infographic3 from "@assets/stock_images/infographic_design_w_6a24cf61.jpg";
-import avatar1 from "@assets/stock_images/professional_researc_f4eae1c5.jpg";
-import avatar2 from "@assets/stock_images/professional_researc_0c22873e.jpg";
-import avatar3 from "@assets/stock_images/professional_researc_598313a1.jpg";
-
-type Status = "approved" | "pending" | "rejected";
+import type { Tag, Infographic } from "@shared/schema";
 
 export default function Admin() {
-  const [tags, setTags] = useState([
-    { id: "1", name: "Health", usageCount: 145 },
-    { id: "2", name: "Psychology", usageCount: 89 },
-    { id: "3", name: "Technology", usageCount: 203 },
-    { id: "4", name: "Environment", usageCount: 67 },
-  ]);
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const [submissions, setSubmissions] = useState<Array<{
-    id: string;
-    title: string;
-    researcher: { name: string; avatar: string };
-    tags: string[];
-    status: Status;
-    submittedDate: string;
-    coverImage: string;
-  }>>([
-    {
-      id: "1",
-      title: "The Impact of Blue Light on Sleep Quality",
-      researcher: { name: "Dr. Sarah Chen", avatar: avatar1 },
-      tags: ["Health", "Technology"],
-      status: "pending",
-      submittedDate: "1 hour ago",
-      coverImage: infographic1,
-    },
-    {
-      id: "2",
-      title: "Microplastics in Ocean Ecosystems: A Growing Concern",
-      researcher: { name: "Dr. Marcus Kim", avatar: avatar2 },
-      tags: ["Environment"],
-      status: "pending",
-      submittedDate: "3 hours ago",
-      coverImage: infographic2,
-    },
-    {
-      id: "3",
-      title: "Cognitive Benefits of Bilingualism in Children",
-      researcher: { name: "Dr. Elena Rodriguez", avatar: avatar3 },
-      tags: ["Psychology"],
-      status: "approved",
-      submittedDate: "1 day ago",
-      coverImage: infographic3,
-    },
-  ]);
+  const { data: tags = [] } = useQuery<Tag[]>({
+    queryKey: ["/api/tags"],
+  });
 
-  const handleCreateTag = (name: string) => {
-    const newTag = {
-      id: Date.now().toString(),
-      name,
-      usageCount: 0,
-    };
-    setTags([...tags, newTag]);
-    console.log("Created tag:", name);
+  const { data: pendingInfographics = [] } = useQuery<Infographic[]>({
+    queryKey: ["/api/admin/infographics/pending"],
+    retry: false,
+  });
+
+  // Redirect if not authenticated or not admin
+  useEffect(() => {
+    if (!authLoading && (!isAuthenticated || user?.role !== 'admin')) {
+      toast({
+        title: "Unauthorized",
+        description: "You need admin access to view this page.",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
+    }
+  }, [isAuthenticated, authLoading, user, toast]);
+
+  const createTagMutation = useMutation({
+    mutationFn: async (data: { name: string; description?: string }) => {
+      return await apiRequest("/api/tags", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tags"] });
+      toast({ title: "Success", description: "Tag created successfully" });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        window.location.href = "/api/login";
+        return;
+      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create tag",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteTagMutation = useMutation({
+    mutationFn: async (tagId: string) => {
+      return await apiRequest(`/api/tags/${tagId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tags"] });
+      toast({ title: "Success", description: "Tag deleted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete tag",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ id, status, rejectionReason }: { id: string; status: string; rejectionReason?: string }) => {
+      return await apiRequest(`/api/admin/infographics/${id}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, rejectionReason }),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/infographics/pending"] });
+      toast({ title: "Success", description: "Infographic reviewed successfully" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to review infographic",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateTag = (name: string, description?: string) => {
+    createTagMutation.mutate({ name, description });
   };
 
   const handleDeleteTag = (id: string) => {
-    setTags(tags.filter((t) => t.id !== id));
-    console.log("Deleted tag:", id);
+    deleteTagMutation.mutate(id);
   };
 
   const handleApprove = (id: string) => {
-    setSubmissions(
-      submissions.map((s) =>
-        s.id === id ? { ...s, status: "approved" as Status } : s
-      )
-    );
-    console.log("Approved:", id);
+    reviewMutation.mutate({ id, status: 'approved' });
   };
 
-  const handleReject = (id: string) => {
-    setSubmissions(
-      submissions.map((s) =>
-        s.id === id ? { ...s, status: "rejected" as Status } : s
-      )
-    );
-    console.log("Rejected:", id);
-  };
-
-  const handleView = (id: string) => {
-    console.log("View details:", id);
+  const handleReject = (id: string, reason: string) => {
+    reviewMutation.mutate({ id, status: 'rejected', rejectionReason: reason });
   };
 
   return (
@@ -101,33 +125,38 @@ export default function Admin() {
       <Tabs defaultValue="verification" className="space-y-6">
         <TabsList>
           <TabsTrigger value="verification" data-testid="tab-verification">
-            Verification Queue
+            Verification Queue ({pendingInfographics.length})
           </TabsTrigger>
           <TabsTrigger value="tags" data-testid="tab-tags">
-            Tag Management
+            Tag Management ({tags.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="verification" className="space-y-4">
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold mb-2">Pending Submissions</h2>
-            <p className="text-sm text-muted-foreground">
-              Review and verify research infographics before publication
-            </p>
-          </div>
           <VerificationQueue
-            submissions={submissions}
+            submissions={pendingInfographics.map(inf => ({
+              id: inf.id,
+              title: (inf.sectionA as any)?.title || 'Untitled',
+              researcher: {
+                name: 'Researcher',
+                avatar: ''
+              },
+              tags: [],
+              status: inf.status,
+              submittedDate: new Date(inf.createdAt || '').toLocaleDateString(),
+              coverImage: '',
+            }))}
             onApprove={handleApprove}
             onReject={handleReject}
-            onView={handleView}
+            onView={(id) => console.log('View:', id)}
           />
         </TabsContent>
 
-        <TabsContent value="tags">
+        <TabsContent value="tags" className="space-y-4">
           <AdminTagManager
-            tags={tags}
-            onCreateTag={handleCreateTag}
-            onDeleteTag={handleDeleteTag}
+            tags={tags.map(t => ({ id: t.id, name: t.name, usageCount: 0 }))}
+            onCreate={handleCreateTag}
+            onDelete={handleDeleteTag}
           />
         </TabsContent>
       </Tabs>

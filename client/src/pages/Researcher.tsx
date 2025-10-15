@@ -1,15 +1,14 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
 import { ResearcherUpload } from "@/components/ResearcherUpload";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, TrendingUp, Eye } from "lucide-react";
 import type { Infographic } from "@shared/schema";
 
 export default function Researcher() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const { toast } = useToast();
 
   const { data: infographics, isLoading } = useQuery<Infographic[]>({
@@ -17,19 +16,19 @@ export default function Researcher() {
     retry: false,
   });
 
-  // Redirect to home if not authenticated
+  // Redirect if not authenticated or not researcher/admin
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!authLoading && (!isAuthenticated || (user && user.role !== 'researcher' && user.role !== 'admin'))) {
       toast({
         title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
+        description: "You need researcher access to view this page.",
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/";
       }, 500);
     }
-  }, [isAuthenticated, authLoading, toast]);
+  }, [isAuthenticated, authLoading, user, toast]);
 
   const stats = {
     total: infographics?.length || 0,

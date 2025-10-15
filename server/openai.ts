@@ -100,8 +100,9 @@ Generate structured infographic content in JSON format with sectionA, sectionB, 
   }
 }
 
+// Note: PDF extraction is not implemented in this MVP
+// The UI currently only supports text pasting, which is functional
+// Future enhancement: Add pdf-parse library or OpenAI file API for PDF support
 export async function extractTextFromPDF(pdfBase64: string): Promise<string> {
-  // For now, we'll handle text extraction on the client side or expect text input
-  // In a production app, you'd use a PDF parsing library like pdf-parse
   throw new Error("PDF extraction not implemented - please paste text directly");
 }
